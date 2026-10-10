@@ -15,14 +15,12 @@ body {
     padding: 24px 0;
 }
 
-/* Authentication Page Body Modifier (Centers login without affecting dashboards) */
 body.auth-body {
     background-color: #ffffff;
     align-items: center;
     padding: 0;
 }
 
-/* ================= Authentication Panel Styles ================= */
 .auth-wrapper {
     width: 380px;
     background: #ffffff;
@@ -141,7 +139,6 @@ body.auth-body {
     text-align: center;
 }
 
-/* ================= Dashboard Layout Styles (Expanded Widescreen) ================= */
 .dashboard-container {
     width: 94%;
     max-width: 1440px;
@@ -186,7 +183,6 @@ body.auth-body {
     min-height: calc(88vh - 65px);
 }
 
-/* Sidebar Styles */
 .sidebar {
     width: 220px;
     border-right: 1px solid #e2e8f0;
@@ -232,7 +228,6 @@ body.auth-body {
     color: #0369a1 !important;
 }
 
-/* Content Area */
 .content {
     flex: 1;
     padding: 28px 36px;
@@ -240,7 +235,6 @@ body.auth-body {
     overflow-y: auto;
 }
 
-/* Search Box */
 .search-card {
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -297,7 +291,6 @@ body.auth-body {
     background-color: #0096b7;
 }
 
-/* Metric KPI Cards */
 .metric-grid {
     display: flex;
     gap: 20px;
@@ -332,7 +325,6 @@ body.auth-body {
 .color-red    { color: #ff4757; }
 .color-yellow { color: #e1b12c; }
 
-/* Tables */
 .section-header {
     display: flex;
     justify-content: space-between;
@@ -383,7 +375,6 @@ body.auth-body {
     background-color: #f8fafc;
 }
 
-/* Status Badges */
 .status-badge {
     padding: 4px 10px;
     border-radius: 4px;
@@ -422,7 +413,6 @@ body.auth-body {
     background-color: #fef2f2;
 }
 
-/* Action Button Rows */
 .action-buttons-row {
     display: flex;
     gap: 16px;

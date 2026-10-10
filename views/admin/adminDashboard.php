@@ -10,13 +10,13 @@ require_once "../../models/usersModel.php";
 $conn = dbConnection();
 $adminId = $_SESSION["userId"];
 
-// Detect current active view from URL, default to 'dashboard'
+@mysqli_query($conn, "ALTER TABLE `DESTINATION` MODIFY `Image` TEXT");
+
 $view = $_GET['view'] ?? 'dashboard';
 
 $msg = "";
 $errorMsg = "";
 
-// Form Processing (Users, Categories, Destinations, Profile, Password)
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $action = $_POST["action"] ?? "";
 
@@ -64,14 +64,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $catId = intval($_POST["category_id"]);
         $name  = trim($_POST["name"]);
         $loc   = trim($_POST["location"]);
-        $img   = trim($_POST["image"] ?? '');
-        if (empty($img)) {
-            $img = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400";
+
+        $savedFileName = "default_destination.jpg";
+        $uploadDirectory = "../../assets/img/";
+
+        if (!is_dir($uploadDirectory)) {
+            mkdir($uploadDirectory, 0777, true);
         }
-        $stmt  = mysqli_prepare($conn, "INSERT INTO `DESTINATION` (`Category_ID`, `Name`, `Location`, `Image`) VALUES (?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'isss', $catId, $name, $loc, $img);
+
+        if (isset($_FILES["dest_image"]) && $_FILES["dest_image"]["error"] === UPLOAD_ERR_OK) {
+            $originalName = basename($_FILES["dest_image"]["name"]);
+            $cleanFileName = time() . "_" . preg_replace("/[^a-zA-Z0-9._-]/", "", $originalName);
+            $targetFilePath = $uploadDirectory . $cleanFileName;
+
+            if (move_uploaded_file($_FILES["dest_image"]["tmp_name"], $targetFilePath)) {
+                $savedFileName = $cleanFileName;
+            } else {
+                $errorMsg = "Failed to save the uploaded image.";
+            }
+        }
+
+        $stmt = mysqli_prepare($conn, "INSERT INTO `DESTINATION` (`Category_ID`, `Name`, `Location`, `Image`) VALUES (?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, 'isss', $catId, $name, $loc, $savedFileName);
         mysqli_stmt_execute($stmt);
         $msg = "Destination added successfully!";
+        $view = 'destinations';
+    } elseif ($action === "edit_destination") {
+        $dId   = intval($_POST["destination_id"]);
+        $catId = intval($_POST["category_id"]);
+        $name  = trim($_POST["name"]);
+        $loc   = trim($_POST["location"]);
+
+        $uploadDirectory = "../../assets/img/";
+        $hasNewImg = isset($_FILES["dest_image"]) && $_FILES["dest_image"]["error"] === UPLOAD_ERR_OK;
+
+        if ($hasNewImg) {
+            if (!is_dir($uploadDirectory)) {
+                mkdir($uploadDirectory, 0777, true);
+            }
+            $originalName = basename($_FILES["dest_image"]["name"]);
+            $cleanFileName = time() . "_" . preg_replace("/[^a-zA-Z0-9._-]/", "", $originalName);
+            $targetFilePath = $uploadDirectory . $cleanFileName;
+
+            if (move_uploaded_file($_FILES["dest_image"]["tmp_name"], $targetFilePath)) {
+                $stmt = mysqli_prepare($conn, "UPDATE `DESTINATION` SET `Category_ID` = ?, `Name` = ?, `Location` = ?, `Image` = ? WHERE `ID` = ?");
+                mysqli_stmt_bind_param($stmt, 'isssi', $catId, $name, $loc, $cleanFileName, $dId);
+                mysqli_stmt_execute($stmt);
+                $msg = "Destination and image updated successfully!";
+            } else {
+                $errorMsg = "Failed to upload new image.";
+            }
+        } else {
+            $stmt = mysqli_prepare($conn, "UPDATE `DESTINATION` SET `Category_ID` = ?, `Name` = ?, `Location` = ? WHERE `ID` = ?");
+            mysqli_stmt_bind_param($stmt, 'issi', $catId, $name, $loc, $dId);
+            mysqli_stmt_execute($stmt);
+            $msg = "Destination details updated successfully!";
+        }
         $view = 'destinations';
     } elseif ($action === "delete_destination") {
         $dId = intval($_POST["destination_id"]);
@@ -103,7 +151,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 
-// Live Metric Calculations
 $uCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `USER`"))['c'];
 $bCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `BOOKING`"))['c'];
 $pCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `TOUR_PACKAGE`"))['c'];
@@ -113,6 +160,12 @@ $dCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `DES
 $apprCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `BOOKING` WHERE Status='Approved'"))['c'];
 $pendCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `BOOKING` WHERE Status='Pending'"))['c'];
 $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `BOOKING` WHERE Status='Completed'"))['c'];
+$rejcCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `BOOKING` WHERE Status='Rejected'"))['c'] ?? 0;
+
+$pendPct = ($bCount > 0) ? round(($pendCount / $bCount) * 100, 1) : 0;
+$apprPct = ($bCount > 0) ? round(($apprCount / $bCount) * 100, 1) : 0;
+$compPct = ($bCount > 0) ? round(($compCount / $bCount) * 100, 1) : 0;
+$rejcPct = ($bCount > 0) ? round(($rejcCount / $bCount) * 100, 1) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -128,13 +181,11 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
     <div class="top-nav">
         <h2>Admin Dashboard</h2>
         <div style="display: flex; align-items: center; gap: 8px;">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Admin" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid #cbd5e1;">
             <span class="user-greeting">Hi, Admin</span>
         </div>
     </div>
 
     <div class="main-body">
-        <!-- Sidebar Navigation -->
         <div class="sidebar">
             <ul>
                 <li class="<?php echo ($view === 'dashboard') ? 'active' : ''; ?>">
@@ -164,7 +215,6 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
             </ul>
         </div>
 
-        <!-- Dynamic Content Area -->
         <div class="content">
             <?php if (!empty($msg)): ?>
                 <div class="success-msg"><?php echo htmlspecialchars($msg); ?></div>
@@ -173,7 +223,6 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                 <div class="error-banner"><?php echo htmlspecialchars($errorMsg); ?></div>
             <?php endif; ?>
 
-            <!-- ================= VIEW 1: DASHBOARD HOME ================= -->
             <?php if ($view === 'dashboard'): ?>
                 <div class="metric-grid">
                     <div class="metric-card">
@@ -210,21 +259,21 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                     <div class="bordered-box">
                         <h3 style="font-size:15px; margin-bottom:12px;">Top Destinations</h3>
                         <ol style="font-size:13px; line-height:1.8; margin-left:18px;">
-                            <li>Bali Adventure (200 bookings)</li>
-                            <li>Switzerland (156 bookings)</li>
-                            <li>Thailand (125 bookings)</li>
+                            <li>Cox's Bazar (200 bookings)</li>
+                            <li>Sajek (156 bookings)</li>
+                            <li>Sylhet (125 bookings)</li>
                         </ol>
 
                         <h4 style="font-size:14px; margin-top:15px; margin-bottom:8px;">Bookings by Status</h4>
                         <ul style="list-style:none; font-size:12px; line-height:1.8;">
-                            <li><span style="color:#2e66e7;">■</span> Pending (17%)</li>
-                            <li><span style="color:#ffa502;">■</span> Approved (30%)</li>
-                            <li><span style="color:#2ed573;">■</span> Completed (53%)</li>
+                            <li><span style="color:#ffa502;">■</span> Pending (<?php echo $pendPct; ?>%)</li>
+                            <li><span style="color:#2ed573;">■</span> Approved (<?php echo $apprPct; ?>%)</li>
+                            <li><span style="color:#2e66e7;">■</span> Completed (<?php echo $compPct; ?>%)</li>
+                            <li><span style="color:#ff4757;">■</span> Rejected (<?php echo $rejcPct; ?>%)</li>
                         </ul>
                     </div>
                 </div>
 
-            <!-- ================= VIEW 2: USERS MANAGEMENT ================= -->
             <?php elseif ($view === 'users'): ?>
                 <div class="section-header">
                     <h3>Users Management</h3>
@@ -313,7 +362,6 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                     </form>
                 </div>
 
-            <!-- ================= VIEW 3: CATEGORY MANAGEMENT ================= -->
             <?php elseif ($view === 'categories'): ?>
                 <div class="section-header">
                     <h3>Category Management</h3>
@@ -365,40 +413,61 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                     </tbody>
                 </table>
 
-            <!-- ================= VIEW 4: DESTINATION MANAGEMENT ================= -->
-            <?php elseif ($view === 'destinations'): ?>
+            <?php elseif ($view === 'destinations'): 
+                $editId = intval($_GET['edit_id'] ?? 0);
+                $editDest = null;
+                if ($editId > 0) {
+                    $eQ = mysqli_query($conn, "SELECT * FROM `DESTINATION` WHERE `ID` = $editId");
+                    $editDest = mysqli_fetch_assoc($eQ);
+                }
+            ?>
                 <div class="section-header">
                     <h3>Destination Management</h3>
                 </div>
 
                 <div class="bordered-box" style="margin-bottom:18px;">
-                    <h4 style="font-size:14px; margin-bottom:10px;">Add Destination</h4>
-                    <form action="adminDashboard.php?view=destinations" method="POST" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1.5fr auto; gap:10px; align-items:flex-end;">
-                        <input type="hidden" name="action" value="add_destination">
+                    <h4 style="font-size:14px; margin-bottom:10px;">
+                        <?php echo $editDest ? 'Edit Destination (ID: ' . $editDest['ID'] . ')' : 'Add Destination'; ?>
+                    </h4>
+                    <form action="adminDashboard.php?view=destinations" method="POST" enctype="multipart/form-data" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1.5fr auto; gap:10px; align-items:flex-end;">
+                        <input type="hidden" name="action" value="<?php echo $editDest ? 'edit_destination' : 'add_destination'; ?>">
+                        <?php if ($editDest): ?>
+                            <input type="hidden" name="destination_id" value="<?php echo $editDest['ID']; ?>">
+                        <?php endif; ?>
+
                         <div class="form-group" style="margin-bottom:0;">
                             <label>Category</label>
                             <select name="category_id" required>
                                 <?php
                                 $catsRes = mysqli_query($conn, "SELECT * FROM `CATEGORY`");
                                 while ($cr = mysqli_fetch_assoc($catsRes)) {
-                                    echo "<option value='{$cr['ID']}'>{$cr['Name']}</option>";
+                                    $sel = ($editDest && $editDest['Category_ID'] == $cr['ID']) ? 'selected' : '';
+                                    echo "<option value='{$cr['ID']}' $sel>{$cr['Name']}</option>";
                                 }
                                 ?>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom:0;">
                             <label>Destination Name</label>
-                            <input type="text" name="name" placeholder="e.g. Bali" required>
+                            <input type="text" name="name" value="<?php echo htmlspecialchars($editDest['Name'] ?? ''); ?>" placeholder="e.g. Cox's Bazar" required>
                         </div>
                         <div class="form-group" style="margin-bottom:0;">
                             <label>Location</label>
-                            <input type="text" name="location" placeholder="e.g. Bali, Indonesia" required>
+                            <input type="text" name="location" value="<?php echo htmlspecialchars($editDest['Location'] ?? ''); ?>" placeholder="e.g. Chittagong, Bangladesh" required>
                         </div>
                         <div class="form-group" style="margin-bottom:0;">
-                            <label>Image URL</label>
-                            <input type="text" name="image" placeholder="Paste image address...">
+                            <label><?php echo $editDest ? 'Change Image (Optional)' : 'Upload Image'; ?></label>
+                            <input type="file" name="dest_image" accept="image/*" <?php echo $editDest ? '' : 'required'; ?> style="padding: 5px; background: #fff;">
                         </div>
-                        <button type="submit" class="btn-cyan">Add Destination</button>
+                        
+                        <div style="display:flex; gap:6px;">
+                            <button type="submit" class="btn-cyan">
+                                <?php echo $editDest ? 'Update' : 'Add Destination'; ?>
+                            </button>
+                            <?php if ($editDest): ?>
+                                <a href="adminDashboard.php?view=destinations" class="btn-sm" style="background:#64748b; color:#fff; text-decoration:none; padding:8px 12px; border-radius:3px; display:inline-flex; align-items:center;">Cancel</a>
+                            <?php endif; ?>
+                        </div>
                     </form>
                 </div>
 
@@ -415,29 +484,49 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                     </thead>
                     <tbody>
                         <?php
+                        $fallbackImg = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400";
                         $dests = mysqli_query($conn, "SELECT d.*, c.Name as CategoryName FROM `DESTINATION` d JOIN `CATEGORY` c ON d.Category_ID = c.ID ORDER BY d.ID ASC");
                         while ($d = mysqli_fetch_assoc($dests)):
-                            $destImg = !empty($d['Image']) ? $d['Image'] : 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400';
+                            $rawImg = trim($d['Image'] ?? '');
+                            
+                            if (preg_match('/^https?:\/\//i', $rawImg)) {
+                                $destImg = $rawImg;
+                            } elseif (!empty($rawImg)) {
+                                $destImg = (strpos($rawImg, '/') !== false) ? $rawImg : "../../assets/img/" . $rawImg;
+                            } else {
+                                $destImg = $fallbackImg;
+                            }
                         ?>
                         <tr>
-                            <td><img src="<?php echo htmlspecialchars($destImg); ?>" style="width:45px; height:45px; object-fit:cover; border-radius:4px;" alt="Destination"></td>
+                            <td>
+                                <img src="<?php echo htmlspecialchars($destImg); ?>" 
+                                     style="width:45px; height:45px; object-fit:cover; border-radius:4px; display:block; background:#e2e8f0;" 
+                                     alt="Destination"
+                                     onerror="this.onerror=null; this.src='<?php echo $fallbackImg; ?>';">
+                            </td>
                             <td><?php echo $d['ID']; ?></td>
                             <td><strong><?php echo htmlspecialchars($d['Name']); ?></strong></td>
                             <td><?php echo htmlspecialchars($d['Location']); ?></td>
                             <td><?php echo htmlspecialchars($d['CategoryName']); ?></td>
                             <td>
-                                <form action="adminDashboard.php?view=destinations" method="POST" style="display:inline;" onsubmit="return confirm('Delete this destination?');">
-                                    <input type="hidden" name="action" value="delete_destination">
-                                    <input type="hidden" name="destination_id" value="<?php echo $d['ID']; ?>">
-                                    <button type="submit" class="btn-sm btn-reject">Delete</button>
-                                </form>
+                                <div style="display:inline-flex; gap:5px; align-items:center;">
+                                    <a href="adminDashboard.php?view=destinations&edit_id=<?php echo $d['ID']; ?>" 
+                                       class="btn-sm" 
+                                       style="background:#0284c7; color:#fff; text-decoration:none; padding:4px 9px; border-radius:3px; font-weight:500;">
+                                       Edit
+                                    </a>
+                                    <form action="adminDashboard.php?view=destinations" method="POST" style="display:inline;" onsubmit="return confirm('Delete this destination?');">
+                                        <input type="hidden" name="action" value="delete_destination">
+                                        <input type="hidden" name="destination_id" value="<?php echo $d['ID']; ?>">
+                                        <button type="submit" class="btn-sm btn-reject">Delete</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
                 </table>
 
-            <!-- ================= VIEW 5: ANALYTICS & REPORTS ================= -->
             <?php elseif ($view === 'analytics'): ?>
                 <div class="section-header">
                     <h3>Analytics & Reports</h3>
@@ -458,31 +547,24 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                     </div>
                 </div>
 
-                <div class="two-col-layout">
-                    <div class="bordered-box">
-                        <h4 style="margin-bottom:12px;">Package Status Breakdown</h4>
-                        <table class="custom-table" style="margin-bottom:0;">
-                            <thead>
-                                <tr>
-                                    <th>Status</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td>Pending Bookings</td><td><?php echo $pendCount; ?></td></tr>
-                                <tr><td>Approved Bookings</td><td><?php echo $apprCount; ?></td></tr>
-                                <tr><td>Completed Bookings</td><td><?php echo $compCount; ?></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="bordered-box" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                        <h4 style="margin-bottom:14px;">Booking Visual Proportion</h4>
-                        <div class="css-pie-chart"></div>
-                    </div>
+                <div class="bordered-box" style="max-width:550px; margin-top:20px;">
+                    <h4 style="margin-bottom:12px;">Package Status Breakdown</h4>
+                    <table class="custom-table" style="margin-bottom:0;">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Pending Bookings</td><td><?php echo $pendCount; ?></td></tr>
+                            <tr><td>Approved Bookings</td><td><?php echo $apprCount; ?></td></tr>
+                            <tr><td>Completed Bookings</td><td><?php echo $compCount; ?></td></tr>
+                            <tr><td>Rejected Bookings</td><td><?php echo $rejcCount; ?></td></tr>
+                        </tbody>
+                    </table>
                 </div>
 
-            <!-- ================= VIEW 6: MY PROFILE ================= -->
             <?php elseif ($view === 'profile'): 
                 $aData = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM `USER` WHERE ID = $adminId"));
             ?>
@@ -513,7 +595,6 @@ $compCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM `
                     </form>
                 </div>
 
-            <!-- ================= VIEW 7: CHANGE PASSWORD ================= -->
             <?php elseif ($view === 'password'): ?>
                 <div class="section-header">
                     <h3>Change Password</h3>

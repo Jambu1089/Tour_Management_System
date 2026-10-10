@@ -1,5 +1,4 @@
 <?php
-// Auto-display register panel if a registration error was returned
 $showRegister = isset($_GET["regErr"]);
 ?>
 <!DOCTYPE html>
@@ -52,7 +51,6 @@ $showRegister = isset($_GET["regErr"]);
         <span class="success-msg"><?php echo htmlspecialchars($_GET["successMsg"]); ?></span>
     <?php endif; ?>
 
-    <!-- ================= LOGIN PANEL ================= -->
     <div class="auth-box" id="loginBox" style="<?php echo $showRegister ? 'display: none;' : ''; ?>">
         <h2>LOGIN</h2>
         <form action="../controllers/loginController.php" method="POST">
@@ -70,10 +68,8 @@ $showRegister = isset($_GET["regErr"]);
                 <a href="#" style="font-size: 12px; color: #00a8ff; text-decoration: none;">Forgot Password?</a>
             </div>
 
-            <!-- Login Submission Button -->
             <button type="submit" class="btn-action-blue">Login</button>
 
-            <!-- Text redirect matching wireframe -->
             <div class="auth-redirect-text">
                 Don't have an account? <span id="openRegisterBtn" class="link-blue">Register here</span>
             </div>
@@ -84,7 +80,6 @@ $showRegister = isset($_GET["regErr"]);
         </form>
     </div>
 
-    <!-- ================= REGISTER PANEL (HIDDEN BY DEFAULT) ================= -->
     <div class="auth-box" id="registerBox" style="<?php echo $showRegister ? '' : 'display: none;'; ?>">
         <h2>REGISTER</h2>
         <form action="../controllers/registerController.php" method="POST">
@@ -118,10 +113,8 @@ $showRegister = isset($_GET["regErr"]);
                 </select>
             </div>
 
-            <!-- Register Submission Button -->
             <button type="submit" class="btn-action-blue">Register</button>
 
-            <!-- Text redirect matching wireframe -->
             <div class="auth-redirect-text">
                 Already have an account? <span id="backToLoginBtn" class="link-blue">Login Here</span>
             </div>
